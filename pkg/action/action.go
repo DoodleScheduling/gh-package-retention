@@ -18,7 +18,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/types"
-	"github.com/google/go-github/v52/github"
+	"github.com/google/go-github/v53/github"
 	"github.com/sethvargo/go-githubactions"
 	"golang.org/x/oauth2"
 	"golang.org/x/sync/errgroup"

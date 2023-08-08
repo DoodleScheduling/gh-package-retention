@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v52/github"
+	"github.com/google/go-github/v53/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/sethvargo/go-githubactions"
 	"github.com/stretchr/testify/assert"

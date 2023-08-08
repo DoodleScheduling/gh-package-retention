@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/google/go-containerregistry v0.16.1
-	github.com/google/go-github/v52 v52.0.0
+	github.com/google/go-github/v53 v53.2.0
 	github.com/migueleliasweb/go-github-mock v0.0.19
 	github.com/sethvargo/go-githubactions v1.1.0
 	github.com/stretchr/testify v1.8.4
@@ -22,7 +22,6 @@ require (
 	github.com/docker/docker v24.0.0+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
-	github.com/google/go-github/v53 v53.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
