@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -13,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/google/go-github/v53/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/sethvargo/go-githubactions"
@@ -40,10 +40,10 @@ func TestRun(t *testing.T) {
 				var packageID2 int64 = 2
 
 				return &Action{
-					PackageName:                "mypackage",
+					PackageNames:               []string{"mypackage"},
 					PackageType:                "container",
 					VersionMatch:               nil,
-					Age:                        &age,
+					Age:                        age,
 					OrganizationName:           "myorg",
 					ContainerRegistryTransport: noIndexResponseTransport(),
 					DryRun:                     false,
@@ -86,10 +86,10 @@ func TestRun(t *testing.T) {
 				var packageID2 int64 = 2
 
 				return &Action{
-					PackageName:                "mypackage",
+					PackageNames:               []string{"mypackage"},
 					PackageType:                "container",
 					VersionMatch:               nil,
-					Age:                        &age,
+					Age:                        age,
 					OrganizationName:           "myorg",
 					ContainerRegistryTransport: noIndexResponseTransport(),
 					DryRun:                     false,
@@ -132,10 +132,10 @@ func TestRun(t *testing.T) {
 				var packageID2 int64 = 2
 
 				return &Action{
-					PackageName:                "mypackage",
+					PackageNames:               []string{"mypackage"},
 					PackageType:                "container",
 					VersionMatch:               regexp.MustCompile(`package-2`),
-					Age:                        &age,
+					Age:                        age,
 					OrganizationName:           "myorg",
 					ContainerRegistryTransport: noIndexResponseTransport(),
 					DryRun:                     false,
@@ -173,10 +173,10 @@ func TestRun(t *testing.T) {
 				var packageID1 int64 = 1
 
 				return &Action{
-					PackageName:                "mypackage",
+					PackageNames:               []string{"mypackage"},
 					PackageType:                "container",
 					VersionMatch:               regexp.MustCompile(`package-1`),
-					Age:                        &age,
+					Age:                        age,
 					OrganizationName:           "myorg",
 					ContainerRegistryTransport: noIndexResponseTransport(),
 					DryRun:                     false,
@@ -215,10 +215,10 @@ func TestRun(t *testing.T) {
 				var packageID3 int64 = 3
 
 				return &Action{
-					PackageName:                "mypackage",
+					PackageNames:               []string{"mypackage"},
 					PackageType:                "container",
 					VersionMatch:               regexp.MustCompile(`package`),
-					Age:                        &age,
+					Age:                        age,
 					OrganizationName:           "myorg",
 					ContainerRegistryTransport: noIndexResponseTransport(),
 					DryRun:                     false,
@@ -320,10 +320,10 @@ func TestRun(t *testing.T) {
 				var packageID3 int64 = 3
 
 				return &Action{
-					PackageName:                "mypackage",
+					PackageNames:               []string{"mypackage"},
 					PackageType:                "container",
 					VersionMatch:               regexp.MustCompile(`package`),
-					Age:                        &age,
+					Age:                        age,
 					OrganizationName:           "myorg",
 					DryRun:                     false,
 					ContainerRegistryTransport: newMockTransport(&http.Response{StatusCode: http.StatusOK}, response, &http.Response{StatusCode: http.StatusOK}, response, &http.Response{StatusCode: http.StatusOK}),
@@ -386,7 +386,7 @@ func TestRun(t *testing.T) {
 
 			a := test.action()
 			a.Action = action
-			a.Logger = log.New(os.Stderr, "", 0)
+			a.Logger = logr.Discard()
 
 			err = a.Run(context.TODO())
 			if !test.expectsError {

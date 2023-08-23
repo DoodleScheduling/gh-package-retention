@@ -1,5 +1,5 @@
 FROM gcr.io/distroless/static:latest
 WORKDIR /
-COPY package-retention package-retention
+COPY gh-package-retention gh-package-retention
 
-ENTRYPOINT ["/package-retention"]
+ENTRYPOINT ["/gh-package-retention"]

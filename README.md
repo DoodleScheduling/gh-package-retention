@@ -7,45 +7,59 @@
 [![license](https://img.shields.io/github/license/DoodleScheduling/package-retention.svg)](https://github.com/DoodleScheduling/package-retention/blob/master/LICENSE)
 
 Package retention manager for ghcr.io.
-Unlike other actions implementing a similar mechanism this action actually has support for docker manifests
+Unlike other apps implementing a similar mechanism this one actually has support for docker manifests
 and can do retentions for multi platform image tags.
 
 * Delete packages based on age (and optionally in combination with a regex filter)
-* Supports rentention for multi platform container images
+* Supports rentention for multi platform container images (and all other package types)
 
-### Inputs
+## Usage
 
-```yaml
-  token:
-    description: "Github API token"
-    required: true
-    default: ${{ github.token }}
-  package-name:
-    description: 'Comma delimted names of packages to target (They all need to be of the same package type)'
-    required: true
-  package-type:
-    description: 'The type of the package (container, maven, ...)'
-    required: true
-  age:
-    description: 'Consider the last update timestamp whether a package version should be deleted. (Example: 48h). Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".'
-    required: false
-  version-match:
-    description: 'Regex to match a version. Note for containers it will match container tags (If package-type is container)'
-    required: false
-  organization-name:
-    description: 'Name of the github organization'
-    required: true
-    default: ${{ github.repository_owner }}
-  dry-run:
-    description: 'Only attempt to delete, does not actaully delete the versions.'
-    required: false
-    default: 'true'
+This example will remove package versions older than 3000h from the maven repositories package and anotherpackage:
+
+```
+package-retention --org-name githuborgname --package-type maven --age 3000h package anotherpackage
 ```
 
-### Usage
+## Installation
 
-Example usage of a package retention workflow.
-This workflow will clean packages daily at midnight.
+### Brew
+```
+brew tap doodlescheduling/gh-package-retention
+brew install gh-package-retention
+```
+
+### Docker
+```
+docker pull ghcr.io/doodlescheduling/gh-package-retention:v2
+```
+
+### Github cli extenion
+```
+gh extension install DoodleScheduling/gh-package-retention
+```
+
+## Arguments
+
+| Flag  | Env | Default | Description |
+| ------------- | ------------- | ------------- | ------------- |
+| ``  | `PACKAGES`  | `` | **REQUIRED**: One or more paths comma separated to kustomize |
+| `--package-type` | `PACKAGE_TYPE` | `` | **REQUIRED**: Type of package (container, maven, ...) |
+| `--org-name` | `ORG_NAME` | `` | **REQUIRED**: Github organization name which is the package owner |
+| `--age`  | `AGE`  | `` | Max age of a package version. Package versions older than the specified age will be removed (As long as version-match macthes the version). |
+| `--dry-run`  | `DRY_RUN` | `false` | Run in dry mode only |
+| `--log-encoding`  | `LOG_ENCODING` | `console` | Log encoding format. Can be 'json' or 'console'. (default "console") |
+| `--log-level`  | `LOG_LEVEL`  | `info` | Log verbosity level. Can be one of 'trace', 'debug', 'info', 'error'. (default "info") |
+| `--token`  | `GITHUB_TOKEN` | `1.27.0` | Github token (By default GITHUB_TOKEN will be used) |
+| `--version-match`  | `VERSION_MATCH` | `` | Regex to match a version. Note for containers it will match container tags (If package-type is container)' |
+
+
+## Github Action
+
+This app works also great on CI, in fact this was the original reason why it was created.
+
+### Example usage
+
 
 ```yaml
 name: package-retention
@@ -58,18 +72,18 @@ jobs:
       packages: write
     runs-on: ubuntu-latest
     steps:
-      - uses: doodlescheduling/package-retention@v1
+      - uses: doodlescheduling/gh-package-retention@v2
         name: Delete oci helm charts older than 90 days
-        with:
-          package-name: charts/${{ github.event.repository.name }}
-          package-type: container
-          age: 2160h
-          version-match: 0.0.0-.*
-      - uses: doodlescheduling/package-retention@v1
+        env:
+          PACKAGES: charts/${{ github.event.repository.name }}
+          PACKAGE_TYPE: container
+          AGE: 2160h
+          VERSION_MATCH: 0.0.0-.*
+      - uses: doodlescheduling/gh-package-retention@v2
         name: Delete maven snapshot versions older than 90 days
         with:
-          package-name: org.example.mypackage
-          package-type: maven
-          age: 2160h
-          version-match: ".*-SNAPSHOT$"
+          PACKAGES: org.example.mypackage
+          PACKAGE_TYPE: maven
+          AGE: 2160h
+          VERSION_MATCH: ".*-SNAPSHOT$"
 ```

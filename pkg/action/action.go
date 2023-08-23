@@ -2,155 +2,67 @@ package action
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
 	"regexp"
-	"strconv"
-	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/google/go-github/v53/github"
 	"github.com/sethvargo/go-githubactions"
-	"golang.org/x/oauth2"
 	"golang.org/x/sync/errgroup"
 )
 
 type Action struct {
 	OrganizationName           string
 	PackageType                string
-	PackageName                string
-	Age                        *time.Duration
+	PackageNames               []string
+	Age                        time.Duration
 	Token                      string
 	DryRun                     bool
 	ContainerRegistryTransport http.RoundTripper
 	VersionMatch               *regexp.Regexp
 	Action                     *githubactions.Action
 	GithubClient               *github.Client
-	SemanticReleaseCommand     *exec.Cmd
-	Logger                     *log.Logger
+	Logger                     logr.Logger
 }
 
-func NewFromInputs(ctx context.Context, action *githubactions.Action) (*Action, error) {
-	token := githubactions.GetInput("token")
-	if token == "" {
-		return nil, errors.New("missing parameter 'token'")
-	}
-	_ = os.Setenv("GITHUB_TOKEN", token)
-
-	packageName := githubactions.GetInput("package-name")
-	if packageName == "" {
-		return nil, errors.New("missing parameter 'package_name'")
-	}
-
-	age := githubactions.GetInput("age")
-	versionMatch := githubactions.GetInput("version-match")
-
-	if versionMatch == "" && age == "" {
-		return nil, errors.New("neither parameter 'age' nor 'version-match' set")
-	}
-
-	var versionMatchRegexp *regexp.Regexp
-	if versionMatch != "" {
-		r, err := regexp.Compile(versionMatch)
-		if err != nil {
-			return nil, err
-		}
-
-		versionMatchRegexp = r
-	}
-
-	var ageDuration *time.Duration
-	if age != "" {
-		a, err := time.ParseDuration(age)
-		if err != nil {
-			return nil, err
-		}
-
-		ageDuration = &a
-	}
-
-	organizationName := strings.ToLower(githubactions.GetInput("organization-name"))
-	if organizationName == "" {
-		return nil, errors.New("missing parameter 'organization-name'")
-	}
-
-	packageType := githubactions.GetInput("package-type")
-	if packageType == "" {
-		return nil, errors.New("missing parameter 'package-type'")
-	}
-
-	dryRun := false
-	if dryRunInput := githubactions.GetInput("dry-run"); dryRunInput != "" {
-		dryRunParsed, err := strconv.ParseBool(dryRunInput)
-		if err != nil {
-			return nil, fmt.Errorf("invalid type for parameter 'dry-run' provided: %w", err)
-		}
-
-		dryRun = dryRunParsed
-	}
-
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: token},
-	)
-
-	tc := oauth2.NewClient(ctx, ts)
-	ghClient := github.NewClient(tc)
-	a := Action{
-		OrganizationName:           organizationName,
-		Token:                      token,
-		PackageName:                packageName,
-		VersionMatch:               versionMatchRegexp,
-		ContainerRegistryTransport: http.DefaultTransport,
-		Age:                        ageDuration,
-		PackageType:                packageType,
-		DryRun:                     dryRun,
-		GithubClient:               ghClient,
-		Action:                     action,
-		Logger:                     log.New(os.Stdout, "", 0),
-	}
-
-	return &a, nil
+type packageVersion struct {
+	version     *github.PackageVersion
+	packageName string
 }
 
 func (a *Action) Run(ctx context.Context) error {
-	toDelete := make(chan *github.PackageVersion)
+	toDelete := make(chan *packageVersion)
 	wg, ctx := errgroup.WithContext(ctx)
 
 	wg.Go(func() error {
 		defer close(toDelete)
-		e := a.findPackages(ctx, toDelete)
-		return e
+
+		for _, packageName := range a.PackageNames {
+			if err := a.findPackages(ctx, packageName, toDelete); err != nil {
+				return err
+			}
+		}
+
+		return nil
 	})
 
 	wg.Go(func() error {
-		packages, err := a.deletePackages(ctx, toDelete)
-		if err != nil {
-			return err
-		}
-
-		var names []string
-		for _, version := range packages {
-			names = append(names, *version.Name)
-		}
-
-		a.Action.SetOutput("versions", strings.Join(names, ","))
-		return nil
+		_, err := a.deletePackages(ctx, toDelete)
+		return err
 	})
 
 	return wg.Wait()
 }
 
-func (a *Action) findPackages(ctx context.Context, toDelete chan *github.PackageVersion) error {
-	versions, err := a.getAllVersionsForPackage(ctx)
+func (a *Action) findPackages(ctx context.Context, packageName string, toDelete chan *packageVersion) error {
+	versions, err := a.getAllVersionsForPackage(ctx, packageName)
 	if err != nil {
 		return err
 	}
@@ -159,7 +71,7 @@ func (a *Action) findPackages(ctx context.Context, toDelete chan *github.Package
 	var references []string
 
 	for _, version := range versions {
-		a.Logger.Printf("checking package version %s:%d", *version.Name, *version.ID)
+		a.Logger.Info("checking package version", "package", packageName, "version", *version.Name, "id", *version.ID)
 		packages[*version.Name] = version
 
 		if a.VersionMatch != nil {
@@ -170,7 +82,7 @@ func (a *Action) findPackages(ctx context.Context, toDelete chan *github.Package
 				}
 
 				if version.Metadata.Container != nil && len(version.Metadata.Container.Tags) > 0 {
-					tags, err := a.garbageCollectManifests(ctx, version)
+					tags, err := a.garbageCollectManifests(ctx, packageName, version)
 					if err != nil {
 						return err
 					}
@@ -188,16 +100,19 @@ func (a *Action) findPackages(ctx context.Context, toDelete chan *github.Package
 			continue
 		}
 
-		if a.Age != nil {
-			if version.UpdatedAt.Time.Add(*a.Age).After(time.Now()) {
+		if a.Age != 0 {
+			if version.UpdatedAt.Time.Add(a.Age).After(time.Now()) {
 				continue
 			}
 		}
 
-		a.Logger.Printf("package %s:%d elected for deletion", *version.Name, *version.ID)
+		a.Logger.Info("package elected for deletion", "package", packageName, "version", *version.Name, "id", *version.ID)
 
 		select {
-		case toDelete <- version:
+		case toDelete <- &packageVersion{
+			version:     version,
+			packageName: packageName,
+		}:
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -205,15 +120,18 @@ func (a *Action) findPackages(ctx context.Context, toDelete chan *github.Package
 	}
 
 	for _, reference := range references {
-		if packageVersion, ok := packages[reference]; ok {
-			if a.Age != nil {
-				if packageVersion.UpdatedAt.Time.Add(*a.Age).After(time.Now()) {
+		if pv, ok := packages[reference]; ok {
+			if a.Age != 0 {
+				if pv.UpdatedAt.Time.Add(a.Age).After(time.Now()) {
 					continue
 				}
 			}
 
 			select {
-			case toDelete <- packageVersion:
+			case toDelete <- &packageVersion{
+				version:     pv,
+				packageName: packageName,
+			}:
 			case <-ctx.Done():
 				return ctx.Err()
 			}
@@ -223,10 +141,10 @@ func (a *Action) findPackages(ctx context.Context, toDelete chan *github.Package
 	return nil
 }
 
-func (a *Action) garbageCollectManifests(ctx context.Context, packageVersion *github.PackageVersion) ([]string, error) {
+func (a *Action) garbageCollectManifests(ctx context.Context, packageName string, packageVersion *github.PackageVersion) ([]string, error) {
 	var tags []string
 	tagName := packageVersion.Metadata.Container.Tags[0]
-	imageRef, err := name.ParseReference(fmt.Sprintf("ghcr.io/%s/%s:%s", a.OrganizationName, a.PackageName, tagName))
+	imageRef, err := name.ParseReference(fmt.Sprintf("ghcr.io/%s/%s:%s", a.OrganizationName, packageName, tagName))
 	if err != nil {
 		return tags, err
 	}
@@ -267,21 +185,21 @@ func (a *Action) garbageCollectManifests(ctx context.Context, packageVersion *gi
 	return tags, nil
 }
 
-func (a *Action) deletePackages(ctx context.Context, toDelete chan *github.PackageVersion) ([]*github.PackageVersion, error) {
-	var deleted []*github.PackageVersion
-	for version := range toDelete {
-		a.Logger.Printf("deleting package %s:%d (dryrun=%v)", *version.Name, *version.ID, a.DryRun)
+func (a *Action) deletePackages(ctx context.Context, toDelete chan *packageVersion) ([]*packageVersion, error) {
+	var deleted []*packageVersion
+	for packageVersion := range toDelete {
+		a.Logger.Info("deleting package version", "package", packageVersion.packageName, "version", *packageVersion.version.Name, "id", *packageVersion.version.ID)
 
 		if a.DryRun {
 			continue
 		}
 
-		_, err := a.GithubClient.Organizations.PackageDeleteVersion(ctx, a.OrganizationName, a.PackageType, url.PathEscape(a.PackageName), *version.ID)
+		_, err := a.GithubClient.Organizations.PackageDeleteVersion(ctx, a.OrganizationName, a.PackageType, url.PathEscape(packageVersion.packageName), *packageVersion.version.ID)
 		if err != nil {
 			return deleted, err
 		}
 
-		deleted = append(deleted, version)
+		deleted = append(deleted, packageVersion)
 	}
 
 	return deleted, nil
@@ -301,12 +219,12 @@ func (a *Action) matchContainer(version *github.PackageVersion) bool {
 	return false
 }
 
-func (a *Action) getAllVersionsForPackage(ctx context.Context) ([]*github.PackageVersion, error) {
+func (a *Action) getAllVersionsForPackage(ctx context.Context, packageName string) ([]*github.PackageVersion, error) {
 	var packageVersions []*github.PackageVersion
 	opts := &github.PackageListOptions{}
 
 	for {
-		versions, resp, err := a.GithubClient.Organizations.PackageGetAllVersions(ctx, a.OrganizationName, a.PackageType, url.PathEscape(a.PackageName), opts)
+		versions, resp, err := a.GithubClient.Organizations.PackageGetAllVersions(ctx, a.OrganizationName, a.PackageType, url.PathEscape(packageName), opts)
 		if err != nil {
 			return packageVersions, err
 		}
