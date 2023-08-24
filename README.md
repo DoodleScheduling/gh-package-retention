@@ -1,10 +1,10 @@
 ## ghcr.io package retention action
 
-[![release](https://img.shields.io/github/release/DoodleScheduling/package-retention/all.svg)](https://github.com/DoodleScheduling/package-retention/releases)
+[![release](https://img.shields.io/github/release/DoodleScheduling/gh-package-retention/all.svg)](https://github.com/DoodleScheduling/gh-package-retention/releases)
 [![release](https://github.com/doodlescheduling/package-retention/actions/workflows/release.yaml/badge.svg)](https://github.com/doodlescheduling/package-retention/actions/workflows/release.yaml)
-[![report](https://goreportcard.com/badge/github.com/DoodleScheduling/package-retention)](https://goreportcard.com/report/github.com/DoodleScheduling/package-retention)
-[![Coverage Status](https://coveralls.io/repos/github/DoodleScheduling/package-retention/badge.svg?branch=master)](https://coveralls.io/github/DoodleScheduling/package-retention?branch=master)
-[![license](https://img.shields.io/github/license/DoodleScheduling/package-retention.svg)](https://github.com/DoodleScheduling/package-retention/blob/master/LICENSE)
+[![report](https://goreportcard.com/badge/github.com/DoodleScheduling/gh-package-retention)](https://goreportcard.com/report/github.com/DoodleScheduling/gh-package-retention)
+[![Coverage Status](https://coveralls.io/repos/github/DoodleScheduling/gh-package-retention/badge.svg?branch=master)](https://coveralls.io/github/DoodleScheduling/gh-package-retention?branch=master)
+[![license](https://img.shields.io/github/license/DoodleScheduling/gh-package-retention.svg)](https://github.com/DoodleScheduling/gh-package-retention/blob/master/LICENSE)
 
 Package retention manager for ghcr.io.
 Unlike other apps implementing a similar mechanism this one actually has support for docker manifests
