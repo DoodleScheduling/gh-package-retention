@@ -1,4 +1,4 @@
-## ghcr.io package retention action
+## ghcr.io package retention
 
 [![release](https://img.shields.io/github/release/DoodleScheduling/gh-package-retention/all.svg)](https://github.com/DoodleScheduling/gh-package-retention/releases)
 [![release](https://github.com/doodlescheduling/package-retention/actions/workflows/release.yaml/badge.svg)](https://github.com/doodlescheduling/package-retention/actions/workflows/release.yaml)
