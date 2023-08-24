@@ -1,4 +1,4 @@
-module github.com/doodlescheduling/package-retention
+module github.com/doodlescheduling/gh-package-retention
 
 go 1.20
 
