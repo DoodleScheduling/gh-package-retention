@@ -1,4 +1,4 @@
-package action
+package ghpackage
 
 import (
 	"context"
@@ -14,11 +14,10 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/google/go-github/v53/github"
-	"github.com/sethvargo/go-githubactions"
 	"golang.org/x/sync/errgroup"
 )
 
-type Action struct {
+type RetentionManager struct {
 	OrganizationName           string
 	PackageType                string
 	PackageNames               []string
@@ -27,18 +26,19 @@ type Action struct {
 	DryRun                     bool
 	ContainerRegistryTransport http.RoundTripper
 	VersionMatch               *regexp.Regexp
-	Action                     *githubactions.Action
 	GithubClient               *github.Client
 	Logger                     logr.Logger
 }
 
-type packageVersion struct {
-	version     *github.PackageVersion
-	packageName string
+type PackageVersion struct {
+	PackageName string
+	Version     string
+	ID          int64
 }
 
-func (a *Action) Run(ctx context.Context) error {
-	toDelete := make(chan *packageVersion)
+func (a *RetentionManager) Run(ctx context.Context) ([]*PackageVersion, error) {
+	var removed []*PackageVersion
+	toDelete := make(chan *PackageVersion)
 	wg, ctx := errgroup.WithContext(ctx)
 
 	wg.Go(func() error {
@@ -54,14 +54,16 @@ func (a *Action) Run(ctx context.Context) error {
 	})
 
 	wg.Go(func() error {
-		_, err := a.deletePackages(ctx, toDelete)
+		r, err := a.deletePackages(ctx, toDelete)
+		removed = append(removed, r...)
 		return err
 	})
 
-	return wg.Wait()
+	err := wg.Wait()
+	return removed, err
 }
 
-func (a *Action) findPackages(ctx context.Context, packageName string, toDelete chan *packageVersion) error {
+func (a *RetentionManager) findPackages(ctx context.Context, packageName string, toDelete chan *PackageVersion) error {
 	versions, err := a.getAllVersionsForPackage(ctx, packageName)
 	if err != nil {
 		return err
@@ -109,9 +111,10 @@ func (a *Action) findPackages(ctx context.Context, packageName string, toDelete 
 		a.Logger.Info("package elected for deletion", "package", packageName, "version", *version.Name, "id", *version.ID)
 
 		select {
-		case toDelete <- &packageVersion{
-			version:     version,
-			packageName: packageName,
+		case toDelete <- &PackageVersion{
+			Version:     *version.Name,
+			PackageName: packageName,
+			ID:          *version.ID,
 		}:
 		case <-ctx.Done():
 			return ctx.Err()
@@ -128,9 +131,10 @@ func (a *Action) findPackages(ctx context.Context, packageName string, toDelete 
 			}
 
 			select {
-			case toDelete <- &packageVersion{
-				version:     pv,
-				packageName: packageName,
+			case toDelete <- &PackageVersion{
+				Version:     *pv.Name,
+				PackageName: packageName,
+				ID:          *pv.ID,
 			}:
 			case <-ctx.Done():
 				return ctx.Err()
@@ -141,7 +145,7 @@ func (a *Action) findPackages(ctx context.Context, packageName string, toDelete 
 	return nil
 }
 
-func (a *Action) garbageCollectManifests(ctx context.Context, packageName string, packageVersion *github.PackageVersion) ([]string, error) {
+func (a *RetentionManager) garbageCollectManifests(ctx context.Context, packageName string, packageVersion *github.PackageVersion) ([]string, error) {
 	var tags []string
 	tagName := packageVersion.Metadata.Container.Tags[0]
 	imageRef, err := name.ParseReference(fmt.Sprintf("ghcr.io/%s/%s:%s", a.OrganizationName, packageName, tagName))
@@ -185,16 +189,16 @@ func (a *Action) garbageCollectManifests(ctx context.Context, packageName string
 	return tags, nil
 }
 
-func (a *Action) deletePackages(ctx context.Context, toDelete chan *packageVersion) ([]*packageVersion, error) {
-	var deleted []*packageVersion
+func (a *RetentionManager) deletePackages(ctx context.Context, toDelete chan *PackageVersion) ([]*PackageVersion, error) {
+	var deleted []*PackageVersion
 	for packageVersion := range toDelete {
-		a.Logger.Info("deleting package version", "package", packageVersion.packageName, "version", *packageVersion.version.Name, "id", *packageVersion.version.ID)
+		a.Logger.Info("deleting package version", "package", packageVersion.PackageName, "version", packageVersion.Version, "id", packageVersion.ID)
 
 		if a.DryRun {
 			continue
 		}
 
-		_, err := a.GithubClient.Organizations.PackageDeleteVersion(ctx, a.OrganizationName, a.PackageType, url.PathEscape(packageVersion.packageName), *packageVersion.version.ID)
+		_, err := a.GithubClient.Organizations.PackageDeleteVersion(ctx, a.OrganizationName, a.PackageType, url.PathEscape(packageVersion.PackageName), packageVersion.ID)
 		if err != nil {
 			return deleted, err
 		}
@@ -204,8 +208,7 @@ func (a *Action) deletePackages(ctx context.Context, toDelete chan *packageVersi
 
 	return deleted, nil
 }
-
-func (a *Action) matchContainer(version *github.PackageVersion) bool {
+func (a *RetentionManager) matchContainer(version *github.PackageVersion) bool {
 	if version.Metadata == nil || version.Metadata.Container.Tags == nil {
 		return false
 	}
@@ -219,7 +222,7 @@ func (a *Action) matchContainer(version *github.PackageVersion) bool {
 	return false
 }
 
-func (a *Action) getAllVersionsForPackage(ctx context.Context, packageName string) ([]*github.PackageVersion, error) {
+func (a *RetentionManager) getAllVersionsForPackage(ctx context.Context, packageName string) ([]*github.PackageVersion, error) {
 	var packageVersions []*github.PackageVersion
 	opts := &github.PackageListOptions{}
 

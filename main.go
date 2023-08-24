@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/doodlescheduling/package-retention/pkg/action"
+	"github.com/doodlescheduling/package-retention/internal/ghpackage"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/google/go-github/v53/github"
@@ -102,7 +102,7 @@ func main() {
 
 	ghClient := github.NewClient(tc)
 
-	a := action.Action{
+	a := ghpackage.RetentionManager{
 		PackageType:      viper.GetString("package-type"),
 		Token:            token,
 		DryRun:           viper.GetBool("dry-run"),
@@ -114,7 +114,8 @@ func main() {
 		Logger:           log,
 	}
 
-	must(a.Run(ctx))
+	_, err = a.Run(ctx)
+	must(err)
 }
 
 type loggingRoundTripper struct {

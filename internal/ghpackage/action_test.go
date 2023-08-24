@@ -1,12 +1,9 @@
-package action
+package ghpackage
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -15,35 +12,39 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/go-github/v53/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
-	"github.com/sethvargo/go-githubactions"
 	"github.com/stretchr/testify/assert"
 )
 
 type runTest struct {
-	name           string
-	action         func() *Action
-	expectsError   bool
-	expectedOutput string
+	name             string
+	RetentionManager func() *RetentionManager
+	expected         []*PackageVersion
 }
 
 func TestRun(t *testing.T) {
 	var tests = []runTest{
 		{
-			name:           "One package which is older than age is removed",
-			expectedOutput: "versions<<_GitHubActionsFileCommandDelimeter_\npackage-1\n_GitHubActionsFileCommandDelimeter_\n",
-			action: func() *Action {
-				age := time.Second * 10
-				packageName1 := "package-1"
-				var packageID1 int64 = 1
+			name: "One package which is older than age is removed",
+			expected: []*PackageVersion{
+				{
+					PackageName: "mypackage",
+					Version:     "package-1",
+					ID:          1,
+				},
+			},
+			RetentionManager: func() *RetentionManager {
+				var (
+					packageName1       = "package-1"
+					packageID1   int64 = 1
+					packageName2       = "package-2"
+					packageID2   int64 = 2
+				)
 
-				packageName2 := "package-2"
-				var packageID2 int64 = 2
-
-				return &Action{
+				return &RetentionManager{
 					PackageNames:               []string{"mypackage"},
 					PackageType:                "container",
 					VersionMatch:               nil,
-					Age:                        age,
+					Age:                        time.Second * 10,
 					OrganizationName:           "myorg",
 					ContainerRegistryTransport: noIndexResponseTransport(),
 					DryRun:                     false,
@@ -75,21 +76,20 @@ func TestRun(t *testing.T) {
 			},
 		},
 		{
-			name:           "No package is removed if both are older newer than age",
-			expectedOutput: "versions<<_GitHubActionsFileCommandDelimeter_\n\n_GitHubActionsFileCommandDelimeter_\n",
-			action: func() *Action {
-				age := time.Second * 10
-				packageName1 := "package-1"
-				var packageID1 int64 = 1
+			name: "No package is removed if both are older newer than age",
+			RetentionManager: func() *RetentionManager {
+				var (
+					packageName1       = "package-1"
+					packageID1   int64 = 1
+					packageName2       = "package-2"
+					packageID2   int64 = 2
+				)
 
-				packageName2 := "package-2"
-				var packageID2 int64 = 2
-
-				return &Action{
+				return &RetentionManager{
 					PackageNames:               []string{"mypackage"},
 					PackageType:                "container",
 					VersionMatch:               nil,
-					Age:                        age,
+					Age:                        time.Second * 10,
 					OrganizationName:           "myorg",
 					ContainerRegistryTransport: noIndexResponseTransport(),
 					DryRun:                     false,
@@ -121,21 +121,20 @@ func TestRun(t *testing.T) {
 			},
 		},
 		{
-			name:           "No packages are removed if neither matches age nor VersionMatch",
-			expectedOutput: "versions<<_GitHubActionsFileCommandDelimeter_\n\n_GitHubActionsFileCommandDelimeter_\n",
-			action: func() *Action {
-				age := time.Second * 10
-				packageName1 := "package-1"
-				var packageID1 int64 = 1
+			name: "No packages are removed if neither matches age nor VersionMatch",
+			RetentionManager: func() *RetentionManager {
+				var (
+					packageName1       = "package-1"
+					packageID1   int64 = 1
+					packageName2       = "package-2"
+					packageID2   int64 = 2
+				)
 
-				packageName2 := "package-2"
-				var packageID2 int64 = 2
-
-				return &Action{
+				return &RetentionManager{
 					PackageNames:               []string{"mypackage"},
 					PackageType:                "container",
 					VersionMatch:               regexp.MustCompile(`package-2`),
-					Age:                        age,
+					Age:                        time.Second * 10,
 					OrganizationName:           "myorg",
 					ContainerRegistryTransport: noIndexResponseTransport(),
 					DryRun:                     false,
@@ -165,18 +164,18 @@ func TestRun(t *testing.T) {
 			},
 		},
 		{
-			name:           "Package which matches VersionMatch but age is too new is not removed",
-			expectedOutput: "versions<<_GitHubActionsFileCommandDelimeter_\n\n_GitHubActionsFileCommandDelimeter_\n",
-			action: func() *Action {
-				age := time.Second * 10
-				packageName1 := "package-1"
-				var packageID1 int64 = 1
+			name: "Package which matches VersionMatch but age is too new is not removed",
+			RetentionManager: func() *RetentionManager {
+				var (
+					packageName1       = "package-1"
+					packageID1   int64 = 1
+				)
 
-				return &Action{
+				return &RetentionManager{
 					PackageNames:               []string{"mypackage"},
 					PackageType:                "container",
 					VersionMatch:               regexp.MustCompile(`package-1`),
-					Age:                        age,
+					Age:                        time.Second * 10,
 					OrganizationName:           "myorg",
 					ContainerRegistryTransport: noIndexResponseTransport(),
 					DryRun:                     false,
@@ -201,24 +200,34 @@ func TestRun(t *testing.T) {
 			},
 		},
 		{
-			name:           "Packages which match VersionMatch and age are removed",
-			expectedOutput: "versions<<_GitHubActionsFileCommandDelimeter_\npackage-2,package-3\n_GitHubActionsFileCommandDelimeter_\n",
-			action: func() *Action {
-				age := time.Second * 10
-				packageName1 := "package-1"
-				var packageID1 int64 = 1
+			name: "Packages which match VersionMatch and age are removed",
+			expected: []*PackageVersion{
+				{
+					PackageName: "mypackage",
+					Version:     "package-2",
+					ID:          2,
+				},
+				{
+					PackageName: "mypackage",
+					Version:     "package-3",
+					ID:          3,
+				},
+			},
+			RetentionManager: func() *RetentionManager {
+				var (
+					packageName1       = "package-1"
+					packageID1   int64 = 1
+					packageName2       = "package-2"
+					packageID2   int64 = 2
+					packageName3       = "package-3"
+					packageID3   int64 = 3
+				)
 
-				packageName2 := "package-2"
-				var packageID2 int64 = 2
-
-				packageName3 := "package-3"
-				var packageID3 int64 = 3
-
-				return &Action{
+				return &RetentionManager{
 					PackageNames:               []string{"mypackage"},
 					PackageType:                "container",
 					VersionMatch:               regexp.MustCompile(`package`),
-					Age:                        age,
+					Age:                        time.Second * 10,
 					OrganizationName:           "myorg",
 					ContainerRegistryTransport: noIndexResponseTransport(),
 					DryRun:                     false,
@@ -269,37 +278,48 @@ func TestRun(t *testing.T) {
 			},
 		},
 		{
-			name:           "Referenced packages in a oci.index package are also removed",
-			expectedOutput: "versions<<_GitHubActionsFileCommandDelimeter_\npackage-1,sha256:c131f961d7af9055d4ff68fad06e7e24c3ce0b971a99d700bc6ba4947b12da86\n_GitHubActionsFileCommandDelimeter_\n",
-			action: func() *Action {
+			name: "Referenced packages in a oci.index package are also removed",
+			expected: []*PackageVersion{
+				{
+					PackageName: "mypackage",
+					Version:     "package-1",
+					ID:          1,
+				},
+				{
+					PackageName: "mypackage",
+					Version:     "sha256:c131f961d7af9055d4ff68fad06e7e24c3ce0b971a99d700bc6ba4947b12da86",
+					ID:          2,
+				},
+			},
+			RetentionManager: func() *RetentionManager {
 				manifest := `{
-					"mediaType": "application/vnd.oci.image.index.v1+json",
-					"schemaVersion": 2,
-					"manifests": [
-					  {
-						"mediaType": "application/vnd.oci.image.manifest.v1+json",
-						"digest": "sha256:c131f961d7af9055d4ff68fad06e7e24c3ce0b971a99d700bc6ba4947b12da86",
-						"size": 1055,
-						"platform": {
-						  "architecture": "amd64",
-						  "os": "linux"
-						}
-					  },
-					  {
-						"mediaType": "application/vnd.oci.image.manifest.v1+json",
-						"digest": "sha256:b6e64b25771997b04f2cee5ee7a0f44886833a80d6e6e41e0c3f2696d253ee5f",
-						"size": 566,
-						"annotations": {
-						  "vnd.docker.reference.digest": "sha256:c131f961d7af9055d4ff68fad06e7e24c3ce0b971a99d700bc6ba4947b12da86",
-						  "vnd.docker.reference.type": "attestation-manifest"
-						},
-						"platform": {
-						  "architecture": "unknown",
-						  "os": "unknown"
-						}
-					  }
-					]
-				  }`
+						"mediaType": "application/vnd.oci.image.index.v1+json",
+						"schemaVersion": 2,
+						"manifests": [
+						  {
+							"mediaType": "application/vnd.oci.image.manifest.v1+json",
+							"digest": "sha256:c131f961d7af9055d4ff68fad06e7e24c3ce0b971a99d700bc6ba4947b12da86",
+							"size": 1055,
+							"platform": {
+							  "architecture": "amd64",
+							  "os": "linux"
+							}
+						  },
+						  {
+							"mediaType": "application/vnd.oci.image.manifest.v1+json",
+							"digest": "sha256:b6e64b25771997b04f2cee5ee7a0f44886833a80d6e6e41e0c3f2696d253ee5f",
+							"size": 566,
+							"annotations": {
+							  "vnd.docker.reference.digest": "sha256:c131f961d7af9055d4ff68fad06e7e24c3ce0b971a99d700bc6ba4947b12da86",
+							  "vnd.docker.reference.type": "attestation-manifest"
+							},
+							"platform": {
+							  "architecture": "unknown",
+							  "os": "unknown"
+							}
+						  }
+						]
+					  }`
 
 				response := &http.Response{
 					Header:     make(http.Header),
@@ -309,21 +329,20 @@ func TestRun(t *testing.T) {
 				response.Header.Set("Content-Type", "application/vnd.oci.image.index.v1+json")
 				response.Header.Set("Docker-Content-Digest", "sha256:a60d0af675b0bad03ebdb529ed1b6009604063136f30516568028008c221e62d")
 
-				age := time.Second * 10
-				packageName1 := "package-1"
-				var packageID1 int64 = 1
+				var (
+					packageName1       = "package-1"
+					packageID1   int64 = 1
+					packageName2       = "sha256:c131f961d7af9055d4ff68fad06e7e24c3ce0b971a99d700bc6ba4947b12da86"
+					packageID2   int64 = 2
+					packageName3       = "sha256:b6e64b25771997b04f2cee5ee7a0f44886833a80d6e6e41e0c3f2696d253ee5f"
+					packageID3   int64 = 3
+				)
 
-				packageName2 := "sha256:c131f961d7af9055d4ff68fad06e7e24c3ce0b971a99d700bc6ba4947b12da86"
-				var packageID2 int64 = 2
-
-				packageName3 := "sha256:b6e64b25771997b04f2cee5ee7a0f44886833a80d6e6e41e0c3f2696d253ee5f"
-				var packageID3 int64 = 3
-
-				return &Action{
+				return &RetentionManager{
 					PackageNames:               []string{"mypackage"},
 					PackageType:                "container",
 					VersionMatch:               regexp.MustCompile(`package`),
-					Age:                        age,
+					Age:                        time.Second * 10,
 					OrganizationName:           "myorg",
 					DryRun:                     false,
 					ContainerRegistryTransport: newMockTransport(&http.Response{StatusCode: http.StatusOK}, response, &http.Response{StatusCode: http.StatusOK}, response, &http.Response{StatusCode: http.StatusOK}),
@@ -372,33 +391,12 @@ func TestRun(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			f, err := os.CreateTemp("", "output")
-			assert.NoError(t, err)
-			defer os.Remove(f.Name())
-
-			err = os.Setenv("GITHUB_OUTPUT", f.Name())
-			assert.NoError(t, err)
-
-			actionLog := bytes.NewBuffer(nil)
-			action := githubactions.New(
-				githubactions.WithWriter(actionLog),
-			)
-
-			a := test.action()
-			a.Action = action
+			a := test.RetentionManager()
 			a.Logger = logr.Discard()
 
-			err = a.Run(context.TODO())
-			if !test.expectsError {
-				if err != nil {
-					fmt.Printf("err: %#v", err)
-				}
-				assert.NoError(t, err)
-			}
-
-			b, err := os.ReadFile(f.Name())
+			remove, err := a.Run(context.TODO())
+			assert.Equal(t, test.expected, remove)
 			assert.NoError(t, err)
-			assert.Equal(t, test.expectedOutput, string(b))
 		})
 	}
 }
