@@ -72,14 +72,14 @@ jobs:
       packages: write
     runs-on: ubuntu-latest
     steps:
-      - uses: doodlescheduling/gh-package-retention@v2
+      - uses: docker://ghcr.io/doodlescheduling/gh-package-retention@sha256:bc6b277986d5a8d0a1c2f67f148cf66bfb40710d6f557b355bf02016bdfdb57c # v2.0.1
         name: Delete oci helm charts older than 90 days
         env:
           PACKAGES: charts/${{ github.event.repository.name }}
           PACKAGE_TYPE: container
           AGE: 2160h
           VERSION_MATCH: 0.0.0-.*
-      - uses: doodlescheduling/gh-package-retention@v2
+      - uses: docker://ghcr.io/doodlescheduling/gh-package-retention@sha256:bc6b277986d5a8d0a1c2f67f148cf66bfb40710d6f557b355bf02016bdfdb57c # v2.0.1
         name: Delete maven snapshot versions older than 90 days
         with:
           PACKAGES: org.example.mypackage
