@@ -100,18 +100,24 @@ func main() {
 		logger: log,
 	}
 
+	containerTransport := &loggingRoundTripper{
+		next:   http.DefaultTransport,
+		logger: log,
+	}
+
 	ghClient := github.NewClient(tc)
 
 	a := ghpackage.RetentionManager{
-		PackageType:      viper.GetString("package-type"),
-		Token:            token,
-		DryRun:           viper.GetBool("dry-run"),
-		GithubClient:     ghClient,
-		PackageNames:     packages,
-		Age:              viper.GetDuration("age"),
-		OrganizationName: viper.GetString("org-name"),
-		VersionMatch:     versionMatchRegexp,
-		Logger:           log,
+		ContainerRegistryTransport: containerTransport,
+		PackageType:                strings.ToLower(viper.GetString("package-type")),
+		Token:                      token,
+		DryRun:                     viper.GetBool("dry-run"),
+		GithubClient:               ghClient,
+		PackageNames:               packages,
+		Age:                        viper.GetDuration("age"),
+		OrganizationName:           strings.ToLower(viper.GetString("org-name")),
+		VersionMatch:               versionMatchRegexp,
+		Logger:                     log,
 	}
 
 	_, err = a.Run(ctx)
@@ -126,6 +132,6 @@ type loggingRoundTripper struct {
 func (p loggingRoundTripper) RoundTrip(req *http.Request) (res *http.Response, e error) {
 	p.logger.V(1).Info("http request sent", "method", req.Method, "uri", req.URL.String())
 	res, err := p.next.RoundTrip(req)
-	p.logger.V(1).Info("http response received", "method", req.Method, "uri", req.URL.String(), "status", res.StatusCode)
+	p.logger.V(1).Info("http response received", "method", req.Method, "uri", req.URL.String(), "status", res.StatusCode, "err", err)
 	return res, err
 }

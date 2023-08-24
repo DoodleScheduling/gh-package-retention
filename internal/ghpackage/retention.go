@@ -80,6 +80,7 @@ func (a *RetentionManager) findPackages(ctx context.Context, packageName string,
 			switch a.PackageType {
 			case "container":
 				if !a.matchContainer(version) {
+					a.Logger.V(1).Info("skip package version as version does not match the required match regex", "package", packageName, "version", *version.Name, "id", *version.ID)
 					continue
 				}
 
@@ -93,17 +94,20 @@ func (a *RetentionManager) findPackages(ctx context.Context, packageName string,
 				}
 			default:
 				if !a.VersionMatch.MatchString(*version.Name) {
+					a.Logger.V(1).Info("skip package version as version does not match the required match regex", "package", packageName, "version", *version.Name, "id", *version.ID)
 					continue
 				}
 			}
 		}
 
 		if version.UpdatedAt == nil {
+			a.Logger.V(1).Info("skip package version as no update timestamp exists", "package", packageName, "version", *version.Name, "id", *version.ID)
 			continue
 		}
 
 		if a.Age != 0 {
 			if version.UpdatedAt.Time.Add(a.Age).After(time.Now()) {
+				a.Logger.V(1).Info("skip package version as age is too new", "package", packageName, "version", *version.Name, "id", *version.ID, "age", version.UpdatedAt)
 				continue
 			}
 		}
