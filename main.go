@@ -12,7 +12,7 @@ import (
 	"github.com/doodlescheduling/gh-package-retention/internal/ghpackage"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
-	"github.com/google/go-github/v53/github"
+	"github.com/google/go-github/v54/github"
 	"github.com/ory/viper"
 	flag "github.com/spf13/pflag"
 	"go.uber.org/zap"

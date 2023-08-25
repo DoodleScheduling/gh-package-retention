@@ -13,7 +13,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/types"
-	"github.com/google/go-github/v53/github"
+	"github.com/google/go-github/v54/github"
 	"golang.org/x/sync/errgroup"
 )
 
