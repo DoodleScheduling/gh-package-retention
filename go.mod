@@ -8,7 +8,7 @@ require (
 	github.com/google/go-containerregistry v0.16.1
 	github.com/google/go-github/v53 v53.2.0
 	github.com/migueleliasweb/go-github-mock v0.0.19
-	github.com/sethvargo/go-envconfig v0.8.0
+	github.com/sethvargo/go-envconfig v0.9.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.25.0
