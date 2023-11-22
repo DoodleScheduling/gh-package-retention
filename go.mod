@@ -6,7 +6,7 @@ require (
 	github.com/go-logr/logr v1.2.4
 	github.com/go-logr/zapr v1.2.4
 	github.com/google/go-containerregistry v0.16.1
-	github.com/google/go-github/v53 v53.2.0
+	github.com/google/go-github/v56 v56.0.0
 	github.com/migueleliasweb/go-github-mock v0.0.19
 	github.com/sethvargo/go-envconfig v0.8.0
 	github.com/spf13/pflag v1.0.5
@@ -26,6 +26,7 @@ require (
 	github.com/docker/docker v24.0.0+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/google/go-github/v53 v53.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
