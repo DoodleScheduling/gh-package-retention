@@ -3,15 +3,15 @@ module github.com/doodlescheduling/gh-package-retention
 go 1.20
 
 require (
-	github.com/go-logr/logr v1.2.4
-	github.com/go-logr/zapr v1.2.4
+	github.com/go-logr/logr v1.3.0
+	github.com/go-logr/zapr v1.3.0
 	github.com/google/go-containerregistry v0.16.1
 	github.com/google/go-github/v53 v53.2.0
 	github.com/migueleliasweb/go-github-mock v0.0.19
 	github.com/sethvargo/go-envconfig v0.8.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.4
-	go.uber.org/zap v1.25.0
+	go.uber.org/zap v1.26.0
 	golang.org/x/oauth2 v0.11.0
 	golang.org/x/sync v0.3.0
 )
