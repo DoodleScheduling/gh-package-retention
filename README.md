@@ -47,7 +47,7 @@ gh extension install DoodleScheduling/gh-package-retention
 | `--package-type` | `PACKAGE_TYPE` | `` | **REQUIRED**: Type of package (container, maven, ...) |
 | `--org-name` | `ORG_NAME` | `` | **REQUIRED**: Github organization name which is the package owner |
 | `--age`  | `AGE`  | `` | Max age of a package version. Package versions older than the specified age will be removed (As long as version-match macthes the version). |
-| `--dry-run`  | `DRY_RUN` | `false` | Run in dry mode only |
+| `--yes`  | `YES` | `false` | Delete packages. By default retention-package runs in a dry mode. |
 | `--log-encoding`  | `LOG_ENCODING` | `console` | Log encoding format. Can be 'json' or 'console'. (default "console") |
 | `--log-level`  | `LOG_LEVEL`  | `info` | Log verbosity level. Can be one of 'trace', 'debug', 'info', 'error'. (default "info") |
 | `--token`  | `GITHUB_TOKEN` | `1.27.0` | Github token (By default GITHUB_TOKEN will be used) |

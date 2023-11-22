@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -13,21 +12,28 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/google/go-github/v53/github"
-	"github.com/ory/viper"
+	"github.com/sethvargo/go-envconfig"
 	flag "github.com/spf13/pflag"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
 
+type Config struct {
+	Yes bool `env:"YES"`
+	Log struct {
+		Level    string `env:"LOG_LEVEL"`
+		Encoding string `env:"LOG_ENCODING"`
+	}
+	VersionMatch string        `env:"VERSION_MATCH"`
+	PackageType  string        `env:"PACKAGE_TYPE"`
+	Packages     []string      `env:"PACKAGES"`
+	Token        string        `env:"GITHUB_TOKEN"`
+	Age          time.Duration `env:"AGE"`
+	OrgName      string        `env:"ORG_NAME"`
+}
+
 var (
-	dryRun       bool
-	versionMatch string
-	packageType  string
-	token        string
-	age          time.Duration
-	logLevel     string
-	logEncoding  string
-	orgName      string
+	config = &Config{}
 )
 
 func must(err error) {
@@ -36,92 +42,88 @@ func must(err error) {
 	}
 }
 
+func init() {
+	flag.BoolVar(&config.Yes, "yes", false, "Skip dry-run and delete packages")
+	flag.StringVar(&config.VersionMatch, "version-match", "", "Version match")
+	flag.DurationVar(&config.Age, "age", 0, "Max age of a package version. Package versions older than the specified age will be removed (As long as version-match macthes the version).")
+	flag.StringVar(&config.OrgName, "org-name", "", "Github organization name which is the package owner")
+	flag.StringVar(&config.Token, "token", "", "Github token (By default GITHUB_TOKEN will be used)")
+	flag.StringVar(&config.PackageType, "package-type", "", "Type of package (container, maven, ...)")
+	flag.StringVar(&config.Log.Encoding, "log-encoding", "console", "Log encoding format. Can be 'json' or 'console'.")
+	flag.StringVar(&config.Log.Level, "log-level", "info", "Log verbosity level. Can be one of 'trace', 'debug', 'info', 'error'.")
+}
+
 func main() {
-	flag.BoolVar(&dryRun, "dry-run", dryRun, "Run in dry mode only")
-	flag.StringVar(&versionMatch, "version-match", versionMatch, "Version match")
-	flag.DurationVar(&age, "age", age, "Max age of a package version. Package versions older than the specified age will be removed (As long as version-match macthes the version).")
-	flag.StringVar(&orgName, "org-name", orgName, "Github organization name which is the package owner")
-	flag.StringVar(&token, "token", token, "Github token (By default GITHUB_TOKEN will be used)")
-	flag.StringVar(&packageType, "package-type", packageType, "Type of package (container, maven, ...)")
-	flag.StringVar(&logEncoding, "log-encoding", "console", "Log encoding format. Can be 'json' or 'console'.")
-	flag.StringVar(&logLevel, "log-level", "info", "Log verbosity level. Can be one of 'trace', 'debug', 'info', 'error'.")
+	ctx := context.Background()
+	if err := envconfig.Process(ctx, config); err != nil {
+		must(err)
+	}
 
 	flag.Parse()
 
-	// Import flags into viper and bind them to env vars
-	// flags are converted to upper-case, - is replaced with _
-	err := viper.BindPFlags(flag.CommandLine)
+	logger, err := buildLogger()
 	must(err)
 
-	replacer := strings.NewReplacer("-", "_")
-	viper.SetEnvKeyReplacer(replacer)
-	viper.AutomaticEnv()
-
-	var log logr.Logger
-	logOpts := zap.NewDevelopmentConfig()
-	logOpts.Encoding = logEncoding
-
-	err = logOpts.Level.UnmarshalText([]byte(logLevel))
-	must(err)
-	zapLog, err := logOpts.Build()
-	must(err)
-	log = zapr.NewLogger(zapLog)
-
-	packages := flag.Args()
-	if len(packages) == 0 {
-		if os.Getenv("PACKAGES") != "" {
-			packages = strings.Split(os.Getenv("PACKAGES"), ",")
-		} else {
-			must(errors.New("at least one package name must be given"))
-		}
+	if len(config.Packages) == 0 {
+		must(errors.New("at least one package name must be given"))
 	}
 
 	var versionMatchRegexp *regexp.Regexp
-	if versionMatch != "" {
-		r, err := regexp.Compile(viper.GetString("version-match"))
+	if config.VersionMatch != "" {
+		r, err := regexp.Compile(config.VersionMatch)
 		must(err)
-
 		versionMatchRegexp = r
 	}
 
-	token = viper.GetString("token")
-	if token == "" {
-		token = os.Getenv("GITHUB_TOKEN")
-	}
-
-	ctx := context.TODO()
 	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: token},
+		&oauth2.Token{AccessToken: config.Token},
 	)
 
 	tc := oauth2.NewClient(ctx, ts)
 	tc.Transport = &loggingRoundTripper{
 		next:   tc.Transport,
-		logger: log,
+		logger: logger,
 	}
 
 	containerTransport := &loggingRoundTripper{
 		next:   http.DefaultTransport,
-		logger: log,
+		logger: logger,
 	}
 
 	ghClient := github.NewClient(tc)
 
 	a := ghpackage.RetentionManager{
 		ContainerRegistryTransport: containerTransport,
-		PackageType:                strings.ToLower(viper.GetString("package-type")),
-		Token:                      token,
-		DryRun:                     viper.GetBool("dry-run"),
+		PackageType:                strings.ToLower(config.PackageType),
+		Token:                      config.Token,
+		DryRun:                     !config.Yes,
 		GithubClient:               ghClient,
-		PackageNames:               packages,
-		Age:                        viper.GetDuration("age"),
-		OrganizationName:           strings.ToLower(viper.GetString("org-name")),
+		PackageNames:               config.Packages,
+		Age:                        config.Age,
+		OrganizationName:           strings.ToLower(config.OrgName),
 		VersionMatch:               versionMatchRegexp,
-		Logger:                     log,
+		Logger:                     logger,
 	}
 
 	_, err = a.Run(ctx)
 	must(err)
+}
+
+func buildLogger() (logr.Logger, error) {
+	logOpts := zap.NewDevelopmentConfig()
+	logOpts.Encoding = config.Log.Encoding
+
+	err := logOpts.Level.UnmarshalText([]byte(config.Log.Level))
+	if err != nil {
+		return logr.Discard(), err
+	}
+
+	zapLog, err := logOpts.Build()
+	if err != nil {
+		return logr.Discard(), err
+	}
+
+	return zapr.NewLogger(zapLog), nil
 }
 
 type loggingRoundTripper struct {
