@@ -1,13 +1,15 @@
 module github.com/doodlescheduling/gh-package-retention
 
-go 1.20
+go 1.21
+
+toolchain go1.23.1
 
 require (
 	github.com/go-logr/logr v1.2.4
 	github.com/go-logr/zapr v1.2.4
 	github.com/google/go-containerregistry v0.16.1
 	github.com/google/go-github/v53 v53.2.0
-	github.com/migueleliasweb/go-github-mock v0.0.19
+	github.com/migueleliasweb/go-github-mock v0.0.23
 	github.com/sethvargo/go-envconfig v0.8.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.4
@@ -26,6 +28,7 @@ require (
 	github.com/docker/docker v24.0.0+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/google/go-github/v59 v59.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
@@ -41,6 +44,7 @@ require (
 	golang.org/x/crypto v0.12.0 // indirect
 	golang.org/x/net v0.14.0 // indirect
 	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
