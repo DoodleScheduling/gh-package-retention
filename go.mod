@@ -3,7 +3,7 @@ module github.com/doodlescheduling/gh-package-retention
 go 1.20
 
 require (
-	github.com/go-logr/logr v1.2.4
+	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.2.4
 	github.com/google/go-containerregistry v0.16.1
 	github.com/google/go-github/v53 v53.2.0
