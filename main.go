@@ -26,6 +26,7 @@ type Config struct {
 	}
 	VersionMatch string        `env:"VERSION_MATCH"`
 	PackageType  string        `env:"PACKAGE_TYPE"`
+	MaxVersions  int           `env:"MAX_VERSIONS"`
 	Packages     []string      `env:"PACKAGES"`
 	Token        string        `env:"GITHUB_TOKEN"`
 	Age          time.Duration `env:"AGE"`
@@ -45,8 +46,9 @@ func must(err error) {
 func init() {
 	flag.BoolVar(&config.Yes, "yes", false, "Skip dry-run and delete packages")
 	flag.StringVar(&config.VersionMatch, "version-match", "", "Version match")
-	flag.DurationVar(&config.Age, "age", 0, "Max age of a package version. Package versions older than the specified age will be removed (As long as version-match macthes the version).")
+	flag.DurationVar(&config.Age, "age", 0, "Max age of a package version. Package versions older than the specified age will be removed (As long as version-match matches the version).")
 	flag.StringVar(&config.OrgName, "org-name", "", "Github organization name which is the package owner")
+	flag.IntVar(&config.MaxVersions, "max-versions", 1000, "Limit number of versions to process.")
 	flag.StringVar(&config.Token, "token", "", "Github token (By default GITHUB_TOKEN will be used)")
 	flag.StringVar(&config.PackageType, "package-type", "", "Type of package (container, maven, ...)")
 	flag.StringVar(&config.Log.Encoding, "log-encoding", "console", "Log encoding format. Can be 'json' or 'console'.")
@@ -54,7 +56,7 @@ func init() {
 }
 
 func main() {
-	ctx := context.Background()
+	ctx := context.TODO()
 	if err := envconfig.Process(ctx, config); err != nil {
 		must(err)
 	}
@@ -63,6 +65,10 @@ func main() {
 
 	logger, err := buildLogger()
 	must(err)
+
+	if len(flag.Args()) > 0 {
+		config.Packages = flag.Args()
+	}
 
 	if len(config.Packages) == 0 {
 		must(errors.New("at least one package name must be given"))
@@ -97,6 +103,7 @@ func main() {
 		PackageType:                strings.ToLower(config.PackageType),
 		Token:                      config.Token,
 		DryRun:                     !config.Yes,
+		MaxVersions:                config.MaxVersions,
 		GithubClient:               ghClient,
 		PackageNames:               config.Packages,
 		Age:                        config.Age,

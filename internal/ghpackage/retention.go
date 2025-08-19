@@ -28,6 +28,7 @@ type RetentionManager struct {
 	VersionMatch               *regexp.Regexp
 	GithubClient               *github.Client
 	Logger                     logr.Logger
+	MaxVersions                int
 }
 
 type PackageVersion struct {
@@ -228,7 +229,11 @@ func (a *RetentionManager) matchContainer(version *github.PackageVersion) bool {
 
 func (a *RetentionManager) getAllVersionsForPackage(ctx context.Context, packageName string) ([]*github.PackageVersion, error) {
 	var packageVersions []*github.PackageVersion
-	opts := &github.PackageListOptions{}
+	opts := &github.PackageListOptions{
+		ListOptions: github.ListOptions{
+			PerPage: 100,
+		},
+	}
 
 	for {
 		versions, resp, err := a.GithubClient.Organizations.PackageGetAllVersions(ctx, a.OrganizationName, a.PackageType, url.PathEscape(packageName), opts)
@@ -237,6 +242,10 @@ func (a *RetentionManager) getAllVersionsForPackage(ctx context.Context, package
 		}
 
 		packageVersions = append(packageVersions, versions...)
+
+		if a.MaxVersions != 0 && len(packageVersions) >= a.MaxVersions {
+			break
+		}
 
 		if resp.NextPage == 0 {
 			break
