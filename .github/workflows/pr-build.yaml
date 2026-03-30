@@ -1,17 +1,15 @@
 name: pr-build
-
 on:
   pull_request:
     types:
       - opened
       - synchronize
       - reopened
-
 jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
-      profiles: ${{ steps.profiles.outputs.matrix }}    
+      profiles: ${{ steps.profiles.outputs.matrix }}
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -40,3 +38,5 @@ jobs:
             echo 'run <make test> and commit changes'
             exit 1
           fi
+  validate-chart:
+    steps: []
