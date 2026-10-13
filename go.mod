@@ -1,8 +1,6 @@
 module github.com/doodlescheduling/gh-package-retention
 
-go 1.24
-
-toolchain go1.24.0
+go 1.26.0
 
 require (
 	github.com/go-logr/logr v1.4.3
@@ -37,7 +35,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/vbatts/tar-split v0.12.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.41.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/crypto v0.56.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
